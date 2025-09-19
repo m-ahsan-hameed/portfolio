@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:portfolio/services/download_cv.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:portfolio/modals/services.dart';
+import 'package:portfolio/services/contact_service.dart';
 
 /// HomeView
 ///
@@ -69,10 +71,20 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
     _animationController.forward();
   }
 
+  // Contact form state
+  final _contactFormKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
+  bool _isSending = false;
+
   @override
   void dispose() {
     _animationController.dispose();
     _scrollController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _messageController.dispose();
     super.dispose();
   }
 
@@ -481,7 +493,9 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
         ),
         const SizedBox(width: 16),
         OutlinedButton(
-          onPressed: () {},
+          onPressed: () {
+            downloadCV();
+          },
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: Colors.white30),
             shape: RoundedRectangleBorder(
@@ -679,7 +693,9 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
         ),
         const SizedBox(height: 32),
         ElevatedButton(
-          onPressed: () {},
+          onPressed: () {
+            downloadCV();
+          },
           child: const Text(
             "Download CV",
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -1069,11 +1085,15 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
 
         /// Contact layout optimized for small screens.
         const SizedBox(height: 24),
-        _buildContactItem(Icons.email, "Email", "ahsan@example.com"),
+        _buildContactItem(Icons.email, "Email", "ahsanhameed.dev@gmail.com"),
         const SizedBox(height: 20),
-        _buildContactItem(Icons.phone, "Phone", "+92 300 123 4567"),
+        _buildContactItem(Icons.phone, "Phone", "+92 370 8062781"),
         const SizedBox(height: 20),
-        _buildContactItem(Icons.location_on, "Location", "Lahore, Pakistan"),
+        _buildContactItem(
+          Icons.location_on,
+          "Location",
+          "Rawalpindi, Pakistan",
+        ),
         const SizedBox(height: 32),
         _buildSocialLinks(),
       ],
@@ -1126,65 +1146,132 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Column(
-        children: [
-          TextFormField(
-            decoration: const InputDecoration(
-              labelText: "Name",
-              labelStyle: TextStyle(color: Colors.white70),
-              border: OutlineInputBorder(),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.white30),
+      child: Form(
+        key: _contactFormKey,
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _nameController,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Please enter your name'
+                  : null,
+              decoration: const InputDecoration(
+                labelText: "Name",
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFFFF6B35)),
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFFFF6B35)),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _emailController,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty)
+                  return 'Please enter your email';
+                final emailRegex = RegExp(r"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+                if (!emailRegex.hasMatch(v.trim()))
+                  return 'Please enter a valid email';
+                return null;
+              },
+              decoration: const InputDecoration(
+                labelText: "Email",
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFFFF6B35)),
+                ),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _messageController,
+              maxLines: 4,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Please enter a message'
+                  : null,
+              decoration: const InputDecoration(
+                labelText: "Message",
+                labelStyle: TextStyle(color: Colors.white70),
+                border: OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white30),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Color(0xFFFF6B35)),
+                ),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSending
+                    ? null
+                    : () async {
+                        if (!_contactFormKey.currentState!.validate()) return;
+                        setState(() => _isSending = true);
+                        final success = await sendEmails(
+                          context: context,
+                          name: _nameController.text.trim(),
+                          email: _emailController.text.trim(),
+                          message: _messageController.text.trim(),
+                        );
+                        setState(() => _isSending = false);
+                        if (success.statusCode == 200) {
+                          _contactFormKey.currentState!.reset();
+                          _nameController.clear();
+                          _emailController.clear();
+                          _messageController.clear();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Message sent successfully'),
+                              ),
+                            );
+                          }
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Failed to send message. Please try again later',
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: _isSending
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        "Send Message",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            decoration: const InputDecoration(
-              labelText: "Email",
-              labelStyle: TextStyle(color: Colors.white70),
-              border: OutlineInputBorder(),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.white30),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFFFF6B35)),
-              ),
-            ),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: "Message",
-              labelStyle: TextStyle(color: Colors.white70),
-              border: OutlineInputBorder(),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.white30),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFFFF6B35)),
-              ),
-            ),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {},
-              child: const Text(
-                "Send Message",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
